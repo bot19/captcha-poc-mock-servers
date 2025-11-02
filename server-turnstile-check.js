@@ -62,9 +62,10 @@ const createVerificationMiddleware = (secret, url) => {
 
       if (data.success) {
         // ✅ Passed — continue with your logic
-        res.send({ success: true });
+        res.send(data);
       } else {
         // ❌ Failed
+        console.error("Error verifying turnstile token:", data.error_codes);
         res.status(400).send({ success: false });
       }
     } catch (error) {
