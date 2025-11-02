@@ -38,35 +38,67 @@ const SECRET_KEY = {
   invisible: process.env.TURNSTILE_INVISIBLE_SECRET_KEY,
 };
 
-app.post("/turnstile-check", async (req, res) => {
-  try {
-    const { token, mode } = req.body;
+/**
+ * Creates a verification middleware function
+ * @param {string} secret - The secret key for verification
+ * @param {string} url - The verification API URL
+ * @returns {Function} Express middleware function
+ */
+const createVerificationMiddleware = (secret, url) => {
+  return async (req, res) => {
+    try {
+      const { token } = req.body;
 
-    const formData = new URLSearchParams();
-    formData.append("secret", SECRET_KEY[mode]);
-    formData.append("response", token);
+      const formData = new URLSearchParams();
+      formData.append("secret", secret);
+      formData.append("response", token);
 
-    const verifyResponse = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
+      const verifyResponse = await fetch(url, {
         method: "POST",
         body: formData,
+      });
+
+      const data = await verifyResponse.json();
+
+      if (data.success) {
+        // ✅ Passed — continue with your logic
+        res.send({ success: true });
+      } else {
+        // ❌ Failed
+        res.status(400).send({ success: false });
       }
-    );
-
-    const data = await verifyResponse.json();
-
-    if (data.success) {
-      // ✅ Passed — continue with your logic
-      res.send({ success: true });
-    } else {
-      // ❌ Failed
-      res.status(400).send({ success: false });
+    } catch (error) {
+      console.error("Error verifying turnstile token:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-  } catch (error) {
-    console.error("Error verifying turnstile token:", error);
-    res.status(500).json({ error: "Internal server error" });
+  };
+};
+
+app.post("/turnstile-check", async (req, res) => {
+  const { mode } = req.body;
+  const secret = SECRET_KEY[mode];
+  const url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+  if (!secret) {
+    return res.status(400).json({ error: "Invalid mode" });
   }
+
+  // Use the abstracted verification middleware
+  const verificationHandler = createVerificationMiddleware(secret, url);
+  await verificationHandler(req, res);
+});
+
+app.post("/recaptcha", async (req, res) => {
+  const secret = process.env.RECAPTCHA_SECRET_KEY;
+  const url = "https://www.google.com/recaptcha/api/siteverify";
+
+  if (!secret) {
+    return res.status(400).json({ error: "Invalid secret key" });
+  }
+
+  // Use the abstracted verification middleware
+  const verificationHandler = createVerificationMiddleware(secret, url);
+  await verificationHandler(req, res);
 });
 
 const PORT = process.env.PORT || 5183;
