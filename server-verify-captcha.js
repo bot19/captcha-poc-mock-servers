@@ -77,7 +77,7 @@ const createVerificationMiddleware = (secret, url) => {
 
 app.post("/turnstile-check", async (req, res) => {
   const { mode } = req.body;
-  const secret = SECRET_KEY[mode];
+  const secret = mode ? SECRET_KEY[mode] : SECRET_KEY.invisible;
   const url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
   if (!secret) {
